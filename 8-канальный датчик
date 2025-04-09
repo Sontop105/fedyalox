@@ -1,0 +1,65 @@
+#include "MGS_CLMLN8.h"
+
+#include <Wire.h>
+
+
+MGS_CLMLN8::MGS_CLMLN8(){
+  // AdrrSensor = _AddrSensor;
+}
+
+bool MGS_CLMLN8::begin(uint8_t _AddrSensor){
+  AddrSensor = _AddrSensor;
+  Wire.begin();
+  Wire.beginTransmission(AddrSensor);  // Selecting the address of the ADC
+  Wire.write(0b00010000);               // Sending I2C General Call
+  Wire.write(SEQ_STATUS_MASK);          // Sending Software Reset
+  Wire.endTransmission();
+  Wire.requestFrom(AddrSensor, 3);
+  returnedRegisterValue = Wire.read();
+  return !returnedRegisterValue;
+}
+
+
+uint16_t MGS_CLMLN8::readValue(uint8_t bitMask) {
+  bitMask = sensors[bitMask];
+  // ResetADC()
+  Wire.beginTransmission(AddrSensor);  // Selecting the address of the ADC
+  Wire.write(0b00011000);               // Sending command for setting a bit
+  Wire.write(GENERAL_CFG_ADDRESS);      // Selecting the Register Address we want to change
+  Wire.write(CH_RST_MASK);              // Sending the Channel Reset Bit Mask to rewrite the register
+  Wire.endTransmission();
+  Wire.beginTransmission(AddrSensor);  // Selecting the address of the ADC
+  Wire.write(0b00011000);               // Sending command for setting a bit
+  Wire.write(GENERAL_CFG_ADDRESS);      // Selecting the Register Address we want to change
+  Wire.write(RST_MASK);                 // Sending the Channel Reset Bit Mask to rewrite the register
+  Wire.endTransmission();
+  Wire.beginTransmission(AddrSensor);  // Selecting the address of the ADC
+  Wire.write(0b00011000);               // Sending command for setting a bit
+  Wire.write(GENERAL_CFG_ADDRESS);      // Selecting the Register Address we want to change
+  Wire.write(RST_COMPLETE);             // Sending the Channel Reset Bit Mask to rewrite the register
+  Wire.endTransmission();
+  //ReadRegister
+  Wire.beginTransmission(AddrSensor);  // Selecting the address of the ADC
+  Wire.write(0b00010000);               // Sending I2C General Call
+  Wire.write(MANUAL_CH_SEL_ADDRESS);          // Sending Software Reset
+  Wire.endTransmission();
+  Wire.requestFrom(AddrSensor, 1);
+  returnedRegisterValue = Wire.read();
+  //setChannelRegister
+  Wire.beginTransmission(AddrSensor);  // Selecting the address of the ADC
+  Wire.write(0b00011000);               // Sending command for setting a bit
+  Wire.write(MANUAL_CH_SEL_ADDRESS);    // Selecting the Register Address we want to change
+  Wire.write(bitMask);                  // Sending the bit Mask to rewrite the register
+  Wire.endTransmission();
+  //чтение данных
+  Wire.requestFrom(AddrSensor, 2);
+  returnedValue = Wire.read() << 8 | Wire.read();
+  returnedValue = returnedValue >> 4;
+  return returnedValue;
+}
+
+
+uint8_t AddrSensor = 0x15;
+uint8_t sensors[8] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07 };
+uint16_t returnedValue;
+uint8_t returnedRegisterValue;
