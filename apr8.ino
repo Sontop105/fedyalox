@@ -27,6 +27,17 @@ bool logged2 = false;
 HTTPClient http;
 WiFiClient cliento;
 long int timefuck = 0;
+bool switchState = false;
+
+void handleToggle() {
+  switchState = !switchState; // Toggle the state
+  Serial.print("Switch state: ");
+  Serial.println(switchState ? "ON" : "OFF");
+  
+  // Redirect back to the main page
+  server.sendHeader("Location", "/", true);
+  server.send(302, "text/plain", ""); 
+}
 
 void setup() {
   Serial.begin(115200);
@@ -51,6 +62,22 @@ void setup() {
     if (!bme_status)
       Serial.println("Датчик не найден, проверьте соединение");
   }
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.println("WiFi connected.");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+  server.on("/toggle", handleToggle);
+  server.begin();
+  pinMode(14, OUTPUT);
+
+  delay(1000);
 }
 
 void sendHtml(WiFiClient& client) {
@@ -91,16 +118,10 @@ void sendHtml(WiFiClient& client) {
     client.println("<tr><td>Уровень жидкости (MGS-L75EN)</td><td id='sensorValue_L75EN'>0</td></tr>");
     client.println("<tr><td>Освещенность (BH1750)</td><td id='lightLevel'>" + String(lightMeter.readLightLevel()) + " lux</td></tr>");
     client.println("<tr><td>Температура (BME280)</td><td id='temperature'>" + String(bme280.readTemperature()) + " °C</td></tr>");
-    
-    if (bme280.readTemperature() > 26) {
-      client.println("<tr><td id='tempStatus' style=\"color: red\">ГОРЯЧО</td><td></td></tr>");
-      client.println("<script>alert('ВЫ ГОРИТЕ!');</script>");
-      for (int i = 0; i < 10; i++) Serial.println("Servo and led activated for 3 seconds.");
-    } else {
-      client.println("<tr><td id='tempStatus' style=\"color: black\">Нормальная температура</td><td></td></tr>");
-    }
 
     client.println("</table>");
+    client.println("<h1>Switch is currently: " + String(switchState ? "ON" : "OFF") + "</h1>");
+    client.println("<a href='/toggle'><button>Toggle Switch</button></a>");
     client.println("<script>setTimeout(function(){location.reload();}, 1500);</script>");
   } else if (logged2) {
     client.println("<table id='sensorData'>");
@@ -111,6 +132,13 @@ void sendHtml(WiFiClient& client) {
     client.println("</table>");
     client.println("<script>setTimeout(function(){location.reload();}, 1500);</script>");
   }
+  if (bme280.readTemperature() > 26) {
+      client.println("<tr><td id='tempStatus' style=\"color: red\">ГОРЯЧО</td><td></td></tr>");
+      client.println("<script>alert('ВЫ ГОРИТЕ!');</script>");
+      for (int i = 0; i < 10; i++) Serial.println("Servo and led activated for 3 seconds.");
+    } else {
+      client.println("<tr><td id='tempStatus' style=\"color: black\">Нормальная температура</td><td></td></tr>");
+    }
 
   client.println("</body>");
   client.println("</html>");
@@ -153,6 +181,7 @@ bool setBusChannel(uint8_t i2c_channel) {
   }
 }
 void loop() {
+  digitalWrite(14, switchState);
   int sensorValue = lightMeter.readLightLevel();
   http.begin(cliento, "http://" + String(serverIP) + "/sensor");
   WiFiClient client = server.available();
